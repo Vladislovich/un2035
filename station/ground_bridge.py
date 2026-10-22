@@ -152,7 +152,7 @@ class Store:
         g = geolocate(meta, self.a)
         o = dict(id=oid, cls=cls, first=t, last=t, conf=round(float(meta.get('confidence', 1.0)), 2),
                  eid=meta.get('event_id'), aruco_id=meta.get('aruco_id', -1),
-                 fake_pose=bool(meta.get('fake_pose')), fix=meta.get('fix_type'), sats=meta.get('sats'))
+                 fix=meta.get('fix_type'), sats=meta.get('sats'))
         if g:
             alt = meta.get('alt_m') or 0
             o.update(lat=round(g['lat'], 7), lon=round(g['lon'], 7), geo_src=g['src'],

@@ -1294,9 +1294,8 @@ function onEvent(m) {
   } else if (m.type === 'telemetry') {
     onTelemetry(m);
   } else if (m.type === 'status' && m.bridge) {
-    const fake = tele && tele.fake_pose ? ' · ТЕСТОВАЯ ПОЗА' : '';
     const vid = m.video_ago !== null && m.video_ago < 3 ? '' : ' · без видео';
-    if (m.peer && m.rx_ago !== null && m.rx_ago < 25) setLink('on', `Дрон на связи, ${m.peer}${vid}${fake}`);
+    if (m.peer && m.rx_ago !== null && m.rx_ago < 25) setLink('on', `Дрон на связи, ${m.peer}${vid}`);
     else if (m.peer) setLink('off', `Дрон молчит ${Math.round(m.rx_ago)} с`);
     else setLink('off', 'Дрон не подключён к станции');
     if (!frame) nosig(m.peer ? 'Дрон на связи, находок пока нет' : 'Жду подключения дрона',
@@ -1329,7 +1328,7 @@ function boardInfo() {
     const diffs = [...objs.values()].filter((o) => typeof o.board_diff_m === 'number').map((o) => o.board_diff_m);
     $('#board').innerHTML = `
       <p>Станция на ноутбуке (ground_bridge.py), дрон шлёт находки на ${c.source}. Детекция ${c.model}.</p>
-      <p>Полётник: ${fc}.${t.fake_pose ? ' <span class="warn">Включена ТЕСТОВАЯ ПОЗА (SAR_FAKE_POSE).</span>' : ''}</p>
+      <p>Полётник: ${fc}.</p>
       <p>Координаты объекта считаются на земле по формуле Миши: пиксель, крен, тангаж, курс и высота на момент кадра, угол обзора ${c.hfov}°, наклон камеры ${c.tilt}° от вертикали.${diffs.length ? ` Расхождение с бортовым расчётом до ${Math.max(...diffs).toFixed(2)} м.` : ''}</p>
       <p>«±» это радиус, в который настоящее положение объекта попадает с вероятностью около 95 %, для GNSS без RTK.</p>`;
     return;
