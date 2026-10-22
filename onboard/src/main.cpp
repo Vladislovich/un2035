@@ -150,6 +150,9 @@ static const std::string QUEUE_DIR           = "queue";
 static const double FAKE_LAT = 60.005388;
 static const double FAKE_LON = 30.373863;
 static const float  FAKE_ALT = 30.0f;
+// Координаты плавают в пределах +-FAKE_JITTER_DEG (0.00002° ≈ 2.2 м по широте,
+// 1.1 м по долготе здесь), чтобы на карте было видно живое движение. 0 - стоят.
+static const double FAKE_JITTER_DEG = 0.00002;
 
 // На землю уходит кадр, уменьшенный до 800 пикселей (~11 КБ, с повторами
 // 33 КБ). Полный кадр пишется на карту платы - для разбора после посадки.
@@ -317,10 +320,10 @@ int main(int argc, char** argv) {
     }
 
     if (fake_pose) {
-        telemetry.set_fake_position(fake_lat, fake_lon, fake_alt);
+        telemetry.set_fake_position(fake_lat, fake_lon, fake_alt, FAKE_JITTER_DEG);
         std::cerr << "\n*** ТЕСТОВАЯ ПОЗА: координаты подставные - "
                   << fake_lat << ", " << fake_lon << ", высота " << fake_alt
-                  << " м ***\n*** В ПОЛЁТ С ЭТИМ НЕ ВЫПУСКАТЬ: метки находок"
+                  << " м, плавают +-" << std::to_string(FAKE_JITTER_DEG) << "° ***\n*** В ПОЛЁТ С ЭТИМ НЕ ВЫПУСКАТЬ: метки находок"
                      " будут указывать не туда ***\n\n";
     }
 

@@ -920,6 +920,16 @@ svg.i { width: 16px; height: 16px; flex: none; fill: currentColor; }
 .stage .msg b { display: block; font-size: 15px; margin-bottom: 4px; color: #FFFFFF; font-weight: 600; }
 .stage .msg span { display: block; max-width: 52ch; color: #C9D3CE; }
 .warn { color: var(--person-fill); }
+/* углы и компас поверх видео; монитор тёмный в обеих темах, поэтому цвета постоянные */
+.att { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: auto auto; gap: 4px 12px; padding: 6px 10px 8px; border-radius: var(--r); background: rgb(10 14 12 / .72); color: #E4EAE6; pointer-events: none; }
+.att .att-src { grid-column: 1 / -1; font-size: 11.5px; color: #A3AFA9; }
+.att figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.att svg { width: 84px; height: 84px; display: block; }
+.att figcaption { font: 500 12px/1.35 var(--mono); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.att.stale svg { opacity: .35; }
+@media (max-width: 560px) { .att { right: 6px; bottom: 6px; padding: 4px 6px 6px; } .att svg { width: 56px; height: 56px; } .att figcaption { font-size: 11px; } }
+.drone { position: relative; }
+.drone.hdg::after { content: ""; position: absolute; left: 50%; top: -11px; transform: translateX(-50%); border: 5px solid transparent; border-top: 0; border-bottom: 8px solid var(--ink); filter: drop-shadow(0 0 1.5px #FFFFFF); }
 </style>
 </head>
 <body>
@@ -949,6 +959,33 @@ svg.i { width: 16px; height: 16px; flex: none; fill: currentColor; }
         <canvas id="screen"></canvas>
         <div class="msg" id="nosig"><div><b>Жду видео с борта</b><span id="nosig-txt">Подключаюсь к серверу на Orange Pi.</span></div></div>
         <div class="frozen" id="frozen" hidden>Кадр заморожен</div>
+        <div class="att" id="att" hidden>
+          <div class="att-src" id="att-src">сейчас</div>
+          <figure>
+            <svg viewBox="-50 -50 100 100" aria-hidden="true">
+              <defs><clipPath id="att-clip"><circle r="45"/></clipPath></defs>
+              <g clip-path="url(#att-clip)"><g id="att-hz">
+                <rect x="-200" y="-200" width="400" height="200" fill="#3B6E9E"/>
+                <rect x="-200" y="0" width="400" height="200" fill="#6E5236"/>
+                <path d="M-200 0H200" stroke="#FFFFFF" stroke-width="1.2"/>
+                <path d="M-10 -12H10M-16 -24H16M-10 12H10M-16 24H16" stroke="#FFFFFF" stroke-width="1" opacity=".75"/>
+              </g></g>
+              <circle r="45" fill="none" stroke="rgb(255 255 255 / .45)" stroke-width="1.5"/>
+              <path d="M-32 0H-12M12 0H32" stroke="#FFB020" stroke-width="3" stroke-linecap="round"/>
+              <circle r="2.5" fill="#FFB020"/>
+            </svg>
+            <figcaption><span id="att-roll">нет углов</span><br><span id="att-pitch"></span></figcaption>
+          </figure>
+          <figure>
+            <svg viewBox="-50 -50 100 100" aria-hidden="true">
+              <circle r="45" fill="rgb(255 255 255 / .06)" stroke="rgb(255 255 255 / .45)" stroke-width="1.5"/>
+              <g id="cmp-card"><path d="M0 -24L5 0H-5Z" fill="#FF6E40"/><path d="M0 24L5 0H-5Z" fill="rgb(255 255 255 / .35)"/></g>
+              <g id="cmp-txt" font-size="11" font-weight="600" text-anchor="middle" dominant-baseline="central" fill="#E4EAE6"></g>
+              <path d="M0 -44L-5 -36H5Z" fill="#FFB020"/>
+            </svg>
+            <figcaption><span id="cmp-hdg">нет курса</span><br><span>▲ нос = верх кадра</span></figcaption>
+          </figure>
+        </div>
       </div>
       <div class="feedline">
         <button class="btn-freeze" id="freeze" type="button" aria-pressed="false"><svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="M200,28H160a20,20,0,0,0-20,20V208a20,20,0,0,0,20,20h40a20,20,0,0,0,20-20V48A20,20,0,0,0,200,28Zm-4,176H164V52h32ZM96,28H56A20,20,0,0,0,36,48V208a20,20,0,0,0,20,20H96a20,20,0,0,0,20-20V48A20,20,0,0,0,96,28ZM92,204H60V52H92Z"/></svg><span>Заморозить кадр</span></button>
@@ -1090,8 +1127,10 @@ function setFrame(bmp, hdr) {
   $('#nosig').hidden = true;
   $('#m-res').textContent = `${bmp.width}×${bmp.height}`;
   findInfo(hdr);
+  if (bridge && (hdr.kind === 'finding') !== attFin) { attFin = hdr.kind === 'finding'; updateAtt(); }
   draw();
 }
+let attFin = false;   // приборы сейчас показывают углы кадра находки
 
 /* ---------------- мост: кадр находки, координаты, телеметрия ---------------- */
 function findHdr(o) {
@@ -1182,7 +1221,51 @@ function onTelemetry(t) {
   $('#t-hz').textContent = 'fix_type' in t ? `фикс ${t.fix_type}, ${t.sats} спутн.` : 'нет данных';
   $('#t-hz').className = 'mono' + ('fix_type' in t && t.fix_type >= 3 ? '' : ' warn');
   if (ok) moveDrone([t.lat, t.lon], t.fp || []);
+  if (typeof t.yaw_deg === 'number') droneHdg(t.yaw_deg);
+  updateAtt();
   if (performance.now() - lastBoard > 1000) { lastBoard = performance.now(); boardInfo(); }
+}
+
+// Авиагоризонт и компас поверх видео. Знаки как в формуле Миши: крен - правое
+// крыло вниз +, тангаж - нос вверх +, курс от севера по часовой. Камера смотрит
+// вниз, верх кадра - нос (плюс поворот камеры pan), поэтому стрелка «С» на
+// компасе показывает, где север на картинке. На кадре находки - углы на момент кадра.
+const RUMB = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
+const fmtDeg = (v) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '°';
+(() => {   // деления компаса: через 10°, длинные через 30°
+  let d = '';
+  for (let a = 0; a < 360; a += 10) {
+    const s = Math.sin(a * Math.PI / 180), c = -Math.cos(a * Math.PI / 180), r0 = a % 30 ? 41 : 37;
+    d += `M${(s * r0).toFixed(2)} ${(c * r0).toFixed(2)}L${(s * 45).toFixed(2)} ${(c * 45).toFixed(2)}`;
+  }
+  $('#cmp-card').insertAdjacentHTML('afterbegin', `<path d="${d}" stroke="rgb(255 255 255 / .55)" stroke-width="1"/>`);
+})();
+
+function updateAtt() {
+  const box = $('#att');
+  box.hidden = !bridge;
+  if (!bridge) return;
+  const fin = frame && frame.hdr.kind === 'finding';
+  const d = fin ? frame.hdr.drone || {} : null, t = tele || {};
+  const a = fin ? { roll: d.roll, pitch: d.pitch, hdg: d.hdg } : { roll: t.roll_deg, pitch: t.pitch_deg, hdg: t.yaw_deg };
+  const ok = [a.roll, a.pitch, a.hdg].every((v) => typeof v === 'number');
+  box.classList.toggle('stale', !ok);
+  $('#att-src').textContent = fin ? `в момент кадра ${frame.hdr.oid}` : 'сейчас';
+  if (!ok) {
+    $('#att-roll').textContent = 'нет углов'; $('#att-pitch').textContent = ''; $('#cmp-hdg').textContent = 'нет курса';
+    return;
+  }
+  const pitch = Math.max(-35, Math.min(35, a.pitch));   // 1.2 единицы на градус, дальше край круга
+  $('#att-hz').setAttribute('transform', `rotate(${-a.roll}) translate(0 ${pitch * 1.2})`);
+  $('#att-roll').textContent = `крен ${fmtDeg(a.roll)}`;
+  $('#att-pitch').textContent = `тангаж ${fmtDeg(a.pitch)}`;
+  const hdg = ((a.hdg % 360) + 360) % 360, up = hdg + ((config && config.pan) || 0);
+  $('#cmp-card').setAttribute('transform', `rotate(${-up})`);
+  $('#cmp-txt').innerHTML = [['С', 0], ['В', 90], ['Ю', 180], ['З', 270]].map(([n, b]) => {
+    const r = (b - up) * Math.PI / 180;
+    return `<text x="${(Math.sin(r) * 30).toFixed(1)}" y="${(-Math.cos(r) * 30).toFixed(1)}"${b ? '' : ' fill="#FF6E40"'}>${n}</text>`;
+  }).join('');
+  $('#cmp-hdg').textContent = `курс ${Math.round(hdg) % 360}° ${RUMB[Math.round(hdg / 45) % 8]}`;
 }
 
 function bridgeMode(on) {
@@ -1191,6 +1274,7 @@ function bridgeMode(on) {
   $('#m-find-w').hidden = !on; $('#m-obj-w').hidden = !on; $('#m-drn-w').hidden = !on;
   $('#t-hz').previousElementSibling.textContent = on ? 'GPS' : 'Детектор';
   freezeLabel();
+  updateAtt();
 }
 
 function onEvent(m) {
@@ -1356,6 +1440,14 @@ function onDrone(hdr) {
   $('#m-gps').className = d.fix ? '' : 'warn';
   if (!config || config.model) $('#t-hz').textContent = hdr.det_fps.toFixed(1) + ' к/с';
   moveDrone([d.lat, d.lon], hdr.fp);
+}
+
+// Носик на метке дрона - по курсу. Карта всегда смотрит на север.
+function droneHdg(h) {
+  const el = droneMk && droneMk.getElement();
+  if (!el || !el.firstElementChild) return;
+  el.firstElementChild.classList.add('hdg');
+  el.firstElementChild.style.transform = `rotate(${h}deg)`;
 }
 
 function moveDrone(ll, fp) {

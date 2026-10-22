@@ -614,7 +614,7 @@ class App:
         t, _ = self.link.telemetry, None
         return dict(type='hello', session='bridge-' + Path(a.dir).name, server_time=time.time(),
                     config=dict(mode='bridge', source=f'дрон по TCP :{a.tcp_port}', model='на борту (RKNN, NPU)',
-                                hfov=a.hfov, tilt=a.tilt, gps='onboard', confirm=3),
+                                hfov=a.hfov, tilt=a.tilt, pan=a.pan, gps='onboard', confirm=3),
                     objects=list(self.store.objects.values()), telemetry=t)
 
     def run(self):

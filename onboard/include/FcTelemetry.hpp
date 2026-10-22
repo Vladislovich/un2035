@@ -43,8 +43,11 @@ public:
     // Режим виден снаружи: в каждой метке и в телеметрии стоит "fake_pose",
     // земля показывает это крупно. Иначе однажды дрон улетит с подставной
     // координатой, и спасатели поедут к башне Политеха вместо леса.
-    void set_fake_position(double lat, double lon, float alt_m) {
-        fake_ = true; flat_ = lat; flon_ = lon; falt_ = alt_m;
+    //
+    // jitter_deg - координаты плавают вокруг заданной точки в пределах
+    // +-jitter_deg по широте и долготе, как у настоящего GPS. 0 - стоят на месте.
+    void set_fake_position(double lat, double lon, float alt_m, double jitter_deg = 0.0) {
+        fake_ = true; flat_ = lat; flon_ = lon; falt_ = alt_m; fjitter_ = jitter_deg;
     }
     bool fake_pose() const { return fake_; }
 
@@ -122,7 +125,7 @@ public:
         }
         if (fake_) {
             s.have_pos = true;
-            s.lat = flat_; s.lon = flon_;
+            fake_latlon(now_us(), s.lat, s.lon);
             s.alt_m = falt_; s.have_alt = true;
             s.fix_type = 3; s.sats = 12;
         }
@@ -145,7 +148,7 @@ private:
         if (!a) a = att_.latest();        // одной записи хватает для проверки
         if (a) { r.roll = a->roll; r.pitch = a->pitch; r.yaw = a->yaw; }
         r.t_us = t_us;
-        r.lat = flat_; r.lon = flon_;
+        fake_latlon(t_us, r.lat, r.lon);
         r.alt_rel = falt_; r.alt_agl = NAN;
         r.fix_type = 3; r.sats = 12;
         fix_ = 3; sats_ = 12;
@@ -153,12 +156,24 @@ private:
         return true;
     }
 
+    // Подставная точка на момент t_us. Плавание - сумма двух синусов с
+    // несоизмеримыми периодами: движение плавное, не повторяется на глаз
+    // и никогда не выходит за +-fjitter_. Зависит только от времени, поэтому
+    // находка и живая телеметрия на один момент дают одну и ту же точку.
+    void fake_latlon(uint64_t t_us, double& lat, double& lon) const {
+        const double t = double(t_us) * 1e-6, w = 2.0 * M_PI;
+        lat = flat_ + fjitter_ * (0.6 * std::sin(w * t / 23.0)
+                                + 0.4 * std::sin(w * t / 7.1 + 1.3));
+        lon = flon_ + fjitter_ * (0.6 * std::sin(w * t / 17.0 + 0.7)
+                                + 0.4 * std::sin(w * t / 5.3 + 2.1));
+    }
+
     AttitudeBuffer att_;
     PositionBuffer pos_;
     std::unique_ptr<ITelemetrySource> src_;
     uint8_t fix_ = 0, sats_ = 0;
     bool   fake_ = false;
-    double flat_ = 0.0, flon_ = 0.0;
+    double flat_ = 0.0, flon_ = 0.0, fjitter_ = 0.0;
     float  falt_ = 0.f;
 };
 
