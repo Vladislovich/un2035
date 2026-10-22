@@ -48,6 +48,10 @@ struct FindingImageParams {
     float crop_margin = 2.0f;  // во сколько раз расширить рамку для вырезки
     int   crop_side   = 256;   // сторона вырезки
     int   crop_quality = 72;
+    // Рисовать ли рамку и подпись на отправляемом кадре. Станция
+    // (ground_bridge.py) рисует рамку сама, в цвете класса и с номером
+    // находки; рамка, вшитая в картинку, дала бы вторую, зелёную.
+    bool  draw_outline = true;
 };
 
 // Контур находки: четыре точки. Для YOLO это углы рамки, для ArUco -
@@ -103,7 +107,7 @@ inline std::vector<uint8_t> encode_finding_frame(const cv::Mat& frame,
                                                  const FindingImageParams& p = {}) {
     if (frame.empty()) return {};
 
-    cv::Mat vis = annotate(frame, outline, label);
+    cv::Mat vis = p.draw_outline ? annotate(frame, outline, label) : frame;
     if (vis.cols > p.frame_width) {
         const double k = double(p.frame_width) / vis.cols;
         // INTER_AREA - единственная интерполяция, которая при уменьшении не

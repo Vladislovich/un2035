@@ -58,6 +58,7 @@ struct EmitterConfig {
     int64_t          mono_to_utc_us = 0;
     std::string      finds_dir = "finds";
     bool             send_frame = true;
+    bool             frame_outline = true;   // рамка на отправляемом кадре
     bool             send_crop  = false;
     bool             save_full  = true;
 };
@@ -107,7 +108,9 @@ public:
             std::snprintf(label, sizeof(label), "%s %.2f", ev.label.c_str(), ev.confidence);
 
         if (cfg_.send_frame) {
-            const auto jpeg = encode_finding_frame(frame.img, ev.outline, label);
+            FindingImageParams ip;
+            ip.draw_outline = cfg_.frame_outline;
+            const auto jpeg = encode_finding_frame(frame.img, ev.outline, label, ip);
             if (!jpeg.empty()) link_.enqueue(REC_FRAME, event_id, jpeg);
             else std::cerr << "событие " << event_id << ": кадр не закодировался\n";
         }

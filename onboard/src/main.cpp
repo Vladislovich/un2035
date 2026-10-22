@@ -162,6 +162,11 @@ static const double FAKE_JITTER_DEG = 0.00002;
 // На землю уходит кадр, уменьшенный до 800 пикселей (~11 КБ, с повторами
 // 33 КБ). Полный кадр пишется на карту платы - для разбора после посадки.
 static const bool        SEND_FINDING_FRAME = true;
+// Рамка на отправляемом кадре. Выключена: её рисует станция (ground_bridge.py)
+// в цвете класса, иначе на кадре две рамки - её и зелёная бортовая. Включить,
+// если кадры смотрят старым ground_server.py / viewer.py, которые рамку не рисуют.
+// Полный кадр на карте платы (SAVE_FULL_FRAME) рамку получает всегда.
+static const bool        FINDING_FRAME_OUTLINE = false;
 static const bool        SEND_FINDING_CROP  = false;
 static const bool        SAVE_FULL_FRAME    = true;
 static const std::string FINDS_DIR          = "finds";
@@ -372,6 +377,7 @@ int main(int argc, char** argv) {
     ecfg.mono_to_utc_us = mono_to_utc_us;
     ecfg.finds_dir  = FINDS_DIR;
     ecfg.send_frame = SEND_FINDING_FRAME;
+    ecfg.frame_outline = FINDING_FRAME_OUTLINE;
     ecfg.send_crop  = SEND_FINDING_CROP;
     ecfg.save_full  = SAVE_FULL_FRAME;
     sar::FindingEmitter emitter(telemetry, link, ecfg);
