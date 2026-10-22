@@ -20,7 +20,9 @@ cd "$(dirname "$0")"
 GROUND_IP="${SAR_GROUND_IP:-192.168.3.24}"     # ноутбук с наземной станцией
 FC="${SAR_FC_URI:-/dev/serial/by-id/usb-Betaflight_Betaflight_-_FOXEERF405V2_0x8000000-if00}"
 WIDTH=1280; HEIGHT=720                          # желаемый размер; берётся, если камера умеет
-# Тестовая поза: башня Политеха, высота 30 м. Применяется только в режиме flight.
+# Подставная точка для режима flight: "широта, долгота" или "широта, долгота, высота".
+# Без высоты - 30 м (FAKE_ALT в src/main.cpp). Разовая замена без правки файла:
+#   SAR_FAKE_POSE="59.9386, 30.3141, 50" ./run.sh flight
 TEST_POSE="60.007156, 30.376788"
 # ---------------------------------------------------------------------------
 
@@ -124,10 +126,11 @@ export SAR_GROUND_IP="$GROUND_IP"
 export SAR_FC_URI="$FC"
 
 if [ "$MODE" = "flight" ]; then
-    export SAR_FAKE_POSE="$TEST_POSE"   # координаты подставные
+    export SAR_FAKE_POSE="${SAR_FAKE_POSE:-$TEST_POSE}"   # координаты подставные
     export SAR_ARUCO_REPEAT_S=2         # маркер можно показывать раз в 2 с
     echo
     echo "  РЕЖИМ ПРОВЕРКИ: координаты подставные, В ПОЛЁТ НЕ ГОДИТСЯ"
+    echo "  точка: $SAR_FAKE_POSE"
     echo
 fi
 echo "земля:  $GROUND_IP"

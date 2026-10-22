@@ -143,10 +143,12 @@ static const std::string QUEUE_DIR           = "queue";
 // Включается ТОЛЬКО переменной окружения, по умолчанию выключена:
 //     SAR_FAKE_POSE=1 ./sar_yolo_pipeline ...
 //     SAR_FAKE_POSE=60.005388,30.373863,30   - свои широта, долгота, высота
+//     SAR_FAKE_POSE="60.005388, 30.373863"   - без высоты: FAKE_ALT
+// run.sh flight подставляет сюда TEST_POSE из run.sh.
 // Нужна, чтобы проверить цепочку "находка -> координата -> земля" на столе:
 // без фикса GPS и с барометром, не обнулённым взведением, геопривязка не
 // отрабатывает, и проверять нечего.
-// Умолчание - башня Политеха, высота 30 м.
+// Умолчание (SAR_FAKE_POSE=1) - башня Политеха, высота 30 м.
 static const double FAKE_LAT = 60.005388;
 static const double FAKE_LON = 30.373863;
 static const float  FAKE_ALT = 30.0f;
@@ -299,9 +301,16 @@ int main(int argc, char** argv) {
     if (const char* fp = std::getenv("SAR_FAKE_POSE")) {
         if (std::string(fp) != "0" && *fp) {
             fake_pose = true;
+            // "шир,долг" или "шир,долг,высота"; пробелы после запятых можно.
+            // Без высоты - FAKE_ALT. "1" или неразборчивое - точка по умолчанию.
             double a = 0, b = 0, c = 0;
-            if (std::sscanf(fp, "%lf,%lf,%lf", &a, &b, &c) == 3) {
-                fake_lat = a; fake_lon = b; fake_alt = float(c);
+            const int n = std::sscanf(fp, "%lf ,%lf ,%lf", &a, &b, &c);
+            if (n >= 2) {
+                fake_lat = a; fake_lon = b;
+                if (n == 3) fake_alt = float(c);
+            } else if (std::string(fp) != "1") {
+                std::cerr << "SAR_FAKE_POSE=\"" << fp << "\" не разобрано (нужно шир,долг[,высота])"
+                             " - беру точку по умолчанию из main.cpp\n";
             }
         }
     }

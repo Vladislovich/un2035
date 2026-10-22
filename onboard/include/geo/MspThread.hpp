@@ -210,12 +210,18 @@ private:
 
     // MSP_ATTITUDE: int16 roll (децидюймы градуса), int16 pitch (то же),
     //               int16 yaw (ЦЕЛЫЕ градусы)
+    //
+    // ЗНАК ТАНГАЖА: в Betaflight тангаж + это нос ВНИЗ (так режим Angle
+    // сравнивает его со стиком: стик от себя +). Вся геометрия дальше
+    // (GeoProject, формула Миши на земле, авиагоризонт станции) - в
+    // авиационном соглашении: нос ВВЕРХ +. Поэтому знак меняем здесь, один раз.
+    // Проверено на столе: без смены знака горизонт на станции шёл в обратную сторону.
     void handle_attitude(const uint8_t* p, int n, uint64_t t_us) {
         if (n < 6) return;
         AttitudeSample s{};
         s.t_us  = t_us;
         s.roll  = float(i16(p + 0)) * 0.1f * DEG2RAD;
-        s.pitch = float(i16(p + 2)) * 0.1f * DEG2RAD;
+        s.pitch = -float(i16(p + 2)) * 0.1f * DEG2RAD;
         s.yaw   = wrap_pi(float(i16(p + 4)) * DEG2RAD);   // уже в градусах
         att_.push(s);
     }
