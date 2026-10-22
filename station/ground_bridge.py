@@ -62,7 +62,7 @@ def parse_args():
     p.add_argument('--dir', default=str(ROOT / 'finds_web'), help='куда сохранять принятое')
     g = p.add_argument_group('камера (если борт не прислал эти поля в метке)')
     g.add_argument('--hfov', type=float, default=62.0, help='угол обзора по горизонтали, градусы (CAMERA_HFOV_DEG)')
-    g.add_argument('--tilt', type=float, default=0.0, help='наклон камеры от вертикали вперёд, градусы (CAMERA_TILT_DEG)')
+    g.add_argument('--tilt', type=float, default=10.0, help='наклон камеры от вертикали вперёд, градусы (CAMERA_TILT_DEG)')
     g.add_argument('--pan', type=float, default=0.0, help='поворот камеры вокруг вертикали, градусы (CAMERA_PAN_DEG)')
     g.add_argument('--aspect', type=float, default=16 / 9, help='W/H кадра для пятна обзора по телеметрии')
     p.add_argument('--gps-sigma', type=float, default=1.5, help='СКО GNSS, м (без RTK около 1.5)')
