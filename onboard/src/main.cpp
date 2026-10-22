@@ -161,6 +161,8 @@ static const std::string FINDS_DIR          = "finds";
 // ==============================================================================
 
 static std::atomic<bool> g_running{true};
+// Камера не открылась или пропала на ходу. run.sh на этот код ищет её заново.
+static const int EXIT_CAMERA_LOST = 3;
 // Сколько кадров реально досталось потоку ArUco и в скольких был маркер.
 // Без этих двух чисел "распознаётся нестабильно" не отличить от "потоку
 // ArUco достаётся два кадра в секунду".
@@ -272,10 +274,12 @@ int main(int argc, char** argv) {
     const std::string pipeline = (argc > 1) ? argv[1] : CAMERA_PIPELINE;
     std::cout << "источник: " << pipeline << "\n";
 
+    // Код выхода EXIT_CAMERA_LOST - сигнал run.sh: найти камеру заново
+    // (после переподключения у неё часто другой /dev/videoN) и перезапустить.
     GstCamera cam;
     if (!cam.open(pipeline)) {
         std::cerr << "Не удалось открыть камеру\n";
-        return 1;
+        return EXIT_CAMERA_LOST;
     }
 
     RknnYolo yolo(MODEL_PATH, MODEL_INPUT_SIZE, NUM_CLASSES,
@@ -360,6 +364,7 @@ int main(int argc, char** argv) {
     // ждут. Кто не успел - пропускает кадр, а не задерживает второго.
     LatestSlot<sar::StampedFrame> yolo_slot, aruco_slot;
 
+    std::atomic<bool> camera_lost{false};
     std::thread capture_thread([&] {
         cv::Mat img;
         uint64_t pts_us = 0;
@@ -374,6 +379,15 @@ int main(int argc, char** argv) {
             if (ARUCO_ENABLED) aruco_slot.put(sf);
             yolo_slot.put(std::move(sf));
         }
+        // Кадров больше не будет - будим детекторы, иначе они ждут вечно
+        // и программа висит молча с замёрзшим видео.
+        if (g_running && !cam.eos()) {
+            std::cerr << "КАМЕРА ПРОПАЛА - выхожу, run.sh перезапустит\n";
+            camera_lost = true;
+        }
+        g_running = false;
+        yolo_slot.stop();
+        aruco_slot.stop();
     });
 
     std::thread aruco_thread;
@@ -543,5 +557,5 @@ int main(int argc, char** argv) {
     // Канал останавливаем последним: неотправленное останется в QUEUE_DIR
     // и уйдёт при следующем запуске.
     link.stop();
-    return 0;
+    return camera_lost ? EXIT_CAMERA_LOST : 0;
 }

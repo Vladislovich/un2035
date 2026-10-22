@@ -46,9 +46,31 @@ public:
     // драйвера PTS не содержит — её вычитает вызывающий (CAPTURE_LATENCY_US).
     // Если PTS недоступен (некоторые источники его не ставят), пишет 0 —
     // вызывающий должен подставить текущее время.
+    //
+    // Не блокируется навсегда: если камера отвалилась (USB отошёл), v4l2src
+    // падает с ошибкой, а appsink просто перестаёт отдавать кадры. Поэтому
+    // ждём кадр с таймаутом и смотрим шину: ошибка, конец потока или тишина
+    // дольше таймаута - false, вызывающий завершается, run.sh перезапускает.
     bool read(cv::Mat& out, uint64_t* t_us = nullptr) {
-        GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(sink_));
-        if (!sample) return false;
+        // Первый кадр камера может отдавать долго (автоэкспозиция, старт USB).
+        const GstClockTime timeout = got_frame_ ? 3 * GST_SECOND : 10 * GST_SECOND;
+        const GstClockTime step    = GST_SECOND / 2;
+        GstSample* sample = nullptr;
+        for (GstClockTime waited = 0; !sample && waited < timeout; waited += step) {
+            sample = gst_app_sink_try_pull_sample(GST_APP_SINK(sink_), step);
+            if (!sample && (bus_failed() || gst_app_sink_is_eos(GST_APP_SINK(sink_))))
+                break;
+        }
+        if (!sample) {
+            if (eos_ || gst_app_sink_is_eos(GST_APP_SINK(sink_))) {
+                eos_ = true;
+                std::cerr << "камера: конец потока\n";
+            } else if (!bus_error_) {
+                std::cerr << "камера: нет кадров " << timeout / GST_SECOND << " с\n";
+            }
+            return false;
+        }
+        got_frame_ = true;
 
         GstBuffer* buf  = gst_sample_get_buffer(sample);
         GstCaps*   caps = gst_sample_get_caps(sample);
@@ -87,6 +109,10 @@ public:
         return true;
     }
 
+    // true - поток закончился штатно (например, кончились файлы multifilesrc),
+    // false - камера пропала или замолчала.
+    bool eos() const { return eos_; }
+
     ~GstCamera() {
         if (pipeline_) {
             gst_element_set_state(pipeline_, GST_STATE_NULL);
@@ -95,6 +121,32 @@ public:
     }
 
 private:
+    // Ошибки пайплайна приходят не в appsink, а на шину - забираем их отсюда.
+    bool bus_failed() {
+        GstBus* bus = gst_element_get_bus(pipeline_);
+        GstMessage* msg;
+        while ((msg = gst_bus_pop_filtered(bus, GstMessageType(GST_MESSAGE_ERROR | GST_MESSAGE_EOS)))) {
+            if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
+                GError* err = nullptr;
+                gchar*  dbg = nullptr;
+                gst_message_parse_error(msg, &err, &dbg);
+                std::cerr << "камера: " << (err ? err->message : "ошибка")
+                          << (dbg ? std::string(" (") + dbg + ")" : "") << "\n";
+                if (err) g_error_free(err);
+                g_free(dbg);
+                bus_error_ = true;
+            } else {
+                eos_ = true;
+            }
+            gst_message_unref(msg);
+        }
+        gst_object_unref(bus);
+        return bus_error_ || eos_;
+    }
+
     GstElement* pipeline_ = nullptr;
     GstElement* sink_ = nullptr;
+    bool got_frame_ = false;
+    bool bus_error_ = false;
+    bool eos_ = false;
 };
