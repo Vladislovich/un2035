@@ -5,6 +5,10 @@
 #   ./run.sh flight       проверка на столе: подставная поза (плавает +-0.00002°),
 #                         частые повторы ArUco
 #   ./run.sh flight 640   то же, но камера 640x480 - если 720p не тянет по кадрам
+#   ./run.sh noflow       без живого видео: на станцию идут только кадры находок
+#                         (телеметрия и находки - как обычно). Экономит канал.
+#
+# Слова сочетаются в любом порядке: ./run.sh flight noflow 640
 #
 # Адрес наземной станции меняется здесь или переменной окружения:
 #   SAR_GROUND_IP=192.168.3.99 ./run.sh
@@ -28,8 +32,15 @@ WIDTH=1280; HEIGHT=720                          # желаемый размер;
 TEST_POSE="60.007156, 30.376788"
 # ---------------------------------------------------------------------------
 
-MODE="${1:-}"
-[ "${2:-}" = "640" ] && { WIDTH=640; HEIGHT=480; }
+FLIGHT=0; NOFLOW=0
+for arg in "$@"; do
+    case "$arg" in
+        flight) FLIGHT=1 ;;
+        noflow) NOFLOW=1 ;;
+        640)    WIDTH=640; HEIGHT=480 ;;
+        *) echo "неизвестный параметр: $arg (есть: flight, noflow, 640)"; exit 1 ;;
+    esac
+done
 EXIT_CAMERA_LOST=3      # тот же код, что в src/main.cpp
 
 # Аппаратный декодер JPEG на RK3566, если он есть: освобождает процессор
@@ -127,13 +138,17 @@ fi
 export SAR_GROUND_IP="$GROUND_IP"
 export SAR_FC_URI="$FC"
 
-if [ "$MODE" = "flight" ]; then
+if [ "$FLIGHT" = 1 ]; then
     export SAR_FAKE_POSE="${SAR_FAKE_POSE:-$TEST_POSE}"   # координаты подставные
     export SAR_ARUCO_REPEAT_S=2         # маркер можно показывать раз в 2 с
     echo
     echo "  РЕЖИМ ПРОВЕРКИ: координаты подставные, В ПОЛЁТ НЕ ГОДИТСЯ"
     echo "  точка: $SAR_FAKE_POSE"
     echo
+fi
+if [ "$NOFLOW" = 1 ]; then
+    export SAR_VIDEO=0                  # без живого видео, только кадры находок
+    echo "видео:  выключено (noflow) - на станцию только кадры находок"
 fi
 echo "земля:  $GROUND_IP"
 
