@@ -62,10 +62,14 @@ public:
                 break;
         }
         if (!sample) {
-            if (eos_ || gst_app_sink_is_eos(GST_APP_SINK(sink_))) {
-                eos_ = true;
+            bus_failed();   // ошибка могла прийти на шину уже после EOS
+            if (gst_app_sink_is_eos(GST_APP_SINK(sink_))) eos_ = true;
+            if (bus_error_) {
+                // После ошибки источник сам шлёт EOS, но это не штатный конец:
+                // камера пропала. Сообщение об ошибке уже напечатано.
+            } else if (eos_) {
                 std::cerr << "камера: конец потока\n";
-            } else if (!bus_error_) {
+            } else {
                 std::cerr << "камера: нет кадров " << timeout / GST_SECOND << " с\n";
             }
             return false;
@@ -110,8 +114,9 @@ public:
     }
 
     // true - поток закончился штатно (например, кончились файлы multifilesrc),
-    // false - камера пропала или замолчала.
-    bool eos() const { return eos_; }
+    // false - камера пропала или замолчала. EOS после ошибки - не штатный:
+    // при отключении USB v4l2src сначала падает с ошибкой, потом шлёт EOS.
+    bool eos() const { return eos_ && !bus_error_; }
 
     ~GstCamera() {
         if (pipeline_) {
